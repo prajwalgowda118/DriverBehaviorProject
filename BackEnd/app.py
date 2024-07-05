@@ -3,21 +3,19 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import os
 
+app = Flask(__name__, template_folder=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'templates'))
 
-temp = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'templates')
-#app = Flask(__name__)
-app=Flask(__name__,template_folder=temp)
+# Set the secret key for session management
+app.config['SECRET_KEY'] = 'v9s8Bzz9G+6TGxO+xj7m8TzV3h+sd+kt'
 
 # Ensure the instance directory exists inside the BackEnd folder
 instance_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'instance')
 if not os.path.exists(instance_path):
     os.makedirs(instance_path)
 
-
 # Configure the SQLite database
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(instance_path, "users.db")}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-#app.config['SECRET_KEY'] = 'your_secret_key'
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
@@ -34,13 +32,6 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return f'<User {self.username}>'
 
-#template_dir = os.path.dirname(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-
-#template_dir = os.path.join(template_dir, 'Driver-Behavior-Dataset/BackEnd/templates/login.html')
-
-#working = 'C:\Python34\pro\\frontend\\templates'
-print(instance_path)
-
 # Create the database and the user table if they don't exist
 with app.app_context():
     if not os.path.exists(os.path.join(instance_path, 'users.db')):
@@ -56,10 +47,7 @@ def load_user(user_id):
 
 @app.route('/')
 def hello_world():
-    return render_template('login.html') 
-    #'Hello, World!'
-    #render_template('login.html')
-        
+    return render_template('login.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -74,6 +62,30 @@ def login():
             return render_template('login.html', error='Invalid credentials')
     return render_template('login.html')
 
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        email = request.form['email']
+        password = request.form['password']
+
+        existing_user = User.query.filter((User.username == username) | (User.email == email)).first()
+        if existing_user:
+            return render_template('register.html', error='User already exists!')
+
+        new_user = User(username=username, email=email, password=password)
+
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            return render_template('register.html', error='Error occurred: ' + str(e))
+
+    return render_template('register.html')
+
+
 @app.route('/logout')
 @login_required
 def logout():
@@ -83,9 +95,10 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return f'Hello, {current_user.username}! Welcome to your dashboard.'
+    return render_template('dashboard.html', username=current_user.username)
 
 @app.route('/users', methods=['GET'])
+#@login_required
 def get_users():
     users = User.query.all()
     user_list = [{'id': user.id, 'username': user.username, 'email': user.email} for user in users]
